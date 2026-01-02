@@ -1,4 +1,5 @@
 import { Machine, machinesSeed } from '@/constants/machine';
+import { enqueue, getQueue, initSyncListener, useSyncStore } from '@/lib/syncQueue';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 export type MachineStatus = 'RUNNING' | 'STOPPED' | 'MAINTENANCE';
@@ -11,6 +12,9 @@ export interface Alert {
   severity?: AlertSeverity;
   time?: string;
   createdAt?: string;
+  status?: 'CREATED' | 'ACKNOWLEDGED' | 'CLEARED';
+  ackBy?: string;
+  ackAt?: string;
 }
 
 export type AlertSeverity = 'LOW' | 'MEDIUM' | 'HIGH';
@@ -23,6 +27,7 @@ export const alertsSeed: Alert[] = [
     severity: 'HIGH',
     time: new Date().toLocaleTimeString(),
     createdAt: new Date().toISOString(),
+    status: 'CREATED',
   },
   {
     id: 'A2',
@@ -31,6 +36,7 @@ export const alertsSeed: Alert[] = [
     severity: 'MEDIUM',
     time: new Date().toLocaleTimeString(),
     createdAt: new Date().toISOString(),
+    status: 'CREATED',
   },
 ];
 
@@ -63,6 +69,7 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
   const [machines, setMachines] = useState<Machine[]>(machinesSeed);
   const [alerts, setAlerts] = useState<Alert[]>(alertsSeed);
   const [maintenanceRecords, setMaintenanceRecords] = useState<MaintenanceRecord[]>([]);
+  const [downtimeSessions, setDowntimeSessions] = useState<Record<string, any>>({});
   const [isHydrated, setIsHydrated] = useState(false);
 
   // Load persisted state on mount
@@ -83,7 +90,39 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
       }
     };
     loadState();
+
+    // start sync listener
+    initSyncListener();
+
+    // populate pending count
+    getQueue().then(q => useSyncStore.getState().setPending(q.length)).catch(e=>{});
   }, []);
+
+  // Alert simulator for demo: push a new alert every 60s
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const id = `A-${Date.now()}`;
+      const machine = machines[Math.floor(Math.random() * machines.length)];
+      if (!machine) return;
+      const newAlert: Alert = {
+        id,
+        message: Math.random() > 0.5 ? 'Auto-generated alert' : 'Check machine parameters',
+        machineName: machine.name,
+        severity: Math.random() > 0.7 ? 'HIGH' : 'LOW',
+        time: new Date().toLocaleTimeString(),
+        createdAt: new Date().toISOString(),
+        status: 'CREATED',
+      };
+
+      setAlerts(prev => {
+        const next = [...prev, newAlert];
+        AsyncStorage.setItem('alerts', JSON.stringify(next)).catch(e => console.error(e));
+        return next;
+      });
+    }, 60000);
+
+    return () => clearInterval(iv);
+  }, [machines]);
 
   // Save machines to AsyncStorage whenever they change
   useEffect(() => {
@@ -135,7 +174,86 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
         } as any,
       ]);
 
+      // enqueue for sync
+      (async () => {
+        try {
+          const tenant_id = (await AsyncStorage.getItem('userId')) || 'tenant-unknown';
+          await enqueue({
+            id: Date.now().toString(),
+            type: 'downtime',
+            payload: { machineId, reason, machineName },
+            tenant_id,
+            createdAt: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.error('enqueue downtime', e);
+        }
+      })();
+
       return updated;
+    });
+  };
+
+  const startDowntime = async (machineId: string, reason: string, photo?: any) => {
+    const sessionId = `ds-${Date.now()}`;
+    setDowntimeSessions(prev => ({ ...prev, [machineId]: { id: sessionId, machineId, reason, photo, startAt: new Date().toISOString() } }));
+
+    setMachines(prev => prev.map(m => m.id === machineId ? { ...m, status: 'STOPPED' as MachineStatus, downtimeReason: reason } : m));
+
+    try {
+      const tenant_id = (await AsyncStorage.getItem('userId')) || 'tenant-unknown';
+      await enqueue({
+        id: sessionId,
+        type: 'downtime_start',
+        payload: { machineId, reason, photo },
+        tenant_id,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.error('enqueue downtime_start', e);
+    }
+  };
+
+  const endDowntime = async (machineId: string, remarks?: string) => {
+    const session = downtimeSessions[machineId];
+    const endAt = new Date().toISOString();
+    if (!session) return;
+
+    const start = new Date(session.startAt).getTime();
+    const durationMs = Math.max(0, new Date(endAt).getTime() - start);
+
+    setMachines(prev => prev.map(m => m.id === machineId ? { ...m, status: 'RUNNING' as MachineStatus, downtimeReason: undefined } : m));
+
+    const machineName = machines.find(m => m.id === machineId)?.name || '';
+    const alert: Alert = {
+      id: `A-${Date.now()}`,
+      message: `Downtime ended (${Math.round(durationMs/1000)}s)${remarks ? ` - ${remarks}` : ''}`,
+      machineName,
+      severity: 'MEDIUM',
+      time: new Date().toLocaleTimeString(),
+      createdAt: new Date().toISOString(),
+      status: 'CREATED',
+    };
+
+    setAlerts(prev => [...prev, alert]);
+
+    try {
+      const tenant_id = (await AsyncStorage.getItem('userId')) || 'tenant-unknown';
+      await enqueue({
+        id: `de-${Date.now()}`,
+        type: 'downtime_end',
+        payload: { machineId, remarks, durationMs, session },
+        tenant_id,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.error('enqueue downtime_end', e);
+    }
+
+    setDowntimeSessions(prev => {
+      const copy = { ...prev };
+      delete copy[machineId];
+      return copy;
     });
   };
 
@@ -180,6 +298,60 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
         createdAt: new Date().toISOString(),
       } as any,
     ]);
+
+    // enqueue maintenance record for sync
+    (async () => {
+      try {
+        const tenant_id = (await AsyncStorage.getItem('userId')) || 'tenant-unknown';
+        await enqueue({
+          id: record.id,
+          type: 'maintenance',
+          payload: record,
+          tenant_id,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.error('enqueue maintenance', e);
+      }
+    })();
+  };
+
+  // Supervisor: acknowledge alert
+  const acknowledgeAlert = (alertId: string, userEmail: string) => {
+    setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status: 'ACKNOWLEDGED', ackBy: userEmail, ackAt: new Date().toISOString() } : a));
+    // enqueue ack event
+    (async () => {
+      try {
+        const tenant_id = (await AsyncStorage.getItem('userId')) || 'tenant-unknown';
+        await enqueue({
+          id: `ack-${alertId}-${Date.now()}`,
+          type: 'acknowledge',
+          payload: { alertId, userEmail },
+          tenant_id,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.error('enqueue ack', e);
+      }
+    })();
+  };
+
+  const clearAlert = (alertId: string) => {
+    setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status: 'CLEARED' } : a));
+    (async () => {
+      try {
+        const tenant_id = (await AsyncStorage.getItem('userId')) || 'tenant-unknown';
+        await enqueue({
+          id: `clear-${alertId}-${Date.now()}`,
+          type: 'clear',
+          payload: { alertId },
+          tenant_id,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.error('enqueue clear', e);
+      }
+    })();
   };
 
   if (!isHydrated) {

@@ -1,6 +1,7 @@
 import { Machine } from '@/constants/machine';
 import { useAuth } from '@/context/AuthContext';
-import { Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { Text, TouchableOpacity, View } from 'react-native';
 
 const statusColor: Record<string, string> = {
   RUNNING: '#2ecc71',
@@ -17,43 +18,47 @@ const statusBgColor: Record<string, string> = {
 export default function MachineCard({ machine }: { machine: Machine }) {
   const { role } = useAuth();
 
+  const handleOpen = () => {
+    router.push(`/(tabs)/machine/${machine.id}`);
+  };
+
   return (
-    <View
-      style={{
-        backgroundColor: statusBgColor[machine.status] || '#fff',
-        padding: 16,
-        borderRadius: 8,
-        marginBottom: 12,
-        borderLeftWidth: 6,
-        borderLeftColor: statusColor[machine.status],
-      }}
-    >
-      <Text style={{ fontSize: 16, fontWeight: '600', color: 'primary' }}>
-        {machine.name}
-      </Text>
-
-      <Text style={{ marginVertical: 8, fontSize: 14, color: 'secondary' }}>
-        Status:{' '}
-        <Text
-          style={{
-            fontWeight: '700',
-            color: statusColor[machine.status],
-          }}
-        >
-          {machine.status}
+    <TouchableOpacity onPress={handleOpen} style={{ borderRadius: 8, marginBottom: 12 }}>
+      <View
+        style={{
+          backgroundColor: statusBgColor[machine.status] || '#fff',
+          padding: 16,
+          borderRadius: 8,
+          borderLeftWidth: 6,
+          borderLeftColor: statusColor[machine.status],
+        }}
+      >
+        <Text style={{ fontSize: 16, fontWeight: '600', color: 'primary' }}>
+          {machine.name}
         </Text>
-      </Text>
 
-      <Text style={{ fontSize: 13, color: '#888' }}>
-        Updated: {machine.lastUpdated}
-      </Text>
-
-      {machine.downtimeReason && (
-        <Text style={{ fontSize: 12, color: '#e74c3c', marginTop: 8 }}>
-          Reason: {machine.downtimeReason}
+        <Text style={{ marginVertical: 8, fontSize: 14, color: 'secondary' }}>
+          Status:{' '}
+          <Text
+            style={{
+              fontWeight: '700',
+              color: statusColor[machine.status],
+            }}
+          >
+            {machine.status}
+          </Text>
         </Text>
-      )}
 
-    </View>
+        <Text style={{ fontSize: 13, color: '#888' }}>
+          Updated: {machine.lastUpdated}
+        </Text>
+
+        {machine.downtimeReason && (
+          <Text style={{ fontSize: 12, color: '#e74c3c', marginTop: 8 }}>
+            Reason: {machine.downtimeReason}
+          </Text>
+        )}
+      </View>
+    </TouchableOpacity>
   );
 }

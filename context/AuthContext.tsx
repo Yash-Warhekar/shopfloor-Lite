@@ -6,41 +6,18 @@ export type Role = 'OPERATOR' | 'SUPERVISOR';
 export interface User {
   id: string;
   username: string;
-  password: string;
-  role: Role;
+  role: Role | null;
   name: string;
 }
-
-// Seeded user accounts for demo
-export const SEEDED_USERS: User[] = [
-  {
-    id: 'op1',
-    username: 'operator',
-    password: 'op123',
-    role: 'OPERATOR',
-    name: 'John Operator',
-  },
-  {
-    id: 'op2',
-    username: 'operator2',
-    password: 'op456',
-    role: 'OPERATOR',
-    name: 'Jane Operator',
-  },
-  {
-    id: 'sup1',
-    username: 'supervisor',
-    password: 'sup123',
-    role: 'SUPERVISOR',
-    name: 'Mike Supervisor',
-  },
-];
 
 interface AuthContextType {
   user: User | null;
   role: Role | null;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (
+    username: string,
+    password: string
+  ) => Promise<{ success: boolean; error?: string; isNewUser?: boolean }>;
   logout: () => Promise<void>;
 }
 
@@ -62,12 +39,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const loadUser = async () => {
       try {
         const savedUserId = await AsyncStorage.getItem('userId');
-        if (savedUserId) {
-          const savedUser = SEEDED_USERS.find(u => u.id === savedUserId);
-          if (savedUser) {
-            setUser(savedUser);
-            setRole(savedUser.role);
-          }
+        const savedJWT = await AsyncStorage.getItem('mockJWT');
+        const savedRole = await AsyncStorage.getItem('userRole');
+        if (savedUserId && savedJWT) {
+          const loaded: User = {
+            id: savedUserId,
+            username: savedUserId,
+            role: (savedRole as Role) || null,
+            name: savedUserId.split('@')[0],
+          };
+          setUser(loaded);
+          setRole(loaded.role);
         }
       } catch (error) {
         console.error('Failed to load user:', error);
@@ -81,19 +63,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const login = async (username: string, password: string) => {
     setIsLoading(true);
     try {
-      const foundUser = SEEDED_USERS.find(
-        u => u.username === username && u.password === password
-      );
+      // Accept any email/username — create a mock user and JWT
+      const id = username;
+      const name = username.includes('@') ? username.split('@')[0] : username;
 
-      if (!foundUser) {
-        return { success: false, error: 'Invalid username or password' };
+      const newUser: User = {
+        id,
+        username: id,
+        role: null,
+        name,
+      };
+
+      const mockJWT = `mock-jwt-${Date.now()}`;
+
+      await AsyncStorage.setItem('userId', id);
+      await AsyncStorage.setItem('mockJWT', mockJWT);
+
+      // Load role if previously chosen
+      const savedRole = await AsyncStorage.getItem('userRole');
+      if (savedRole) {
+        newUser.role = savedRole as Role;
+        await AsyncStorage.setItem('userRole', savedRole);
+        setRole(savedRole as Role);
       }
 
-      await AsyncStorage.setItem('userId', foundUser.id);
-      setUser(foundUser);
-      setRole(foundUser.role);
+      setUser(newUser);
 
-      return { success: true };
+      // If role not yet set for this user, indicate first-login to allow role selection
+      const isNewUser = !newUser.role;
+
+      return { success: true, isNewUser };
     } catch (error) {
       console.error('Login error:', error);
       return { success: false, error: 'Login failed' };
@@ -105,6 +104,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = async () => {
     try {
       await AsyncStorage.removeItem('userId');
+      await AsyncStorage.removeItem('mockJWT');
       setUser(null);
       setRole(null);
     } catch (error) {

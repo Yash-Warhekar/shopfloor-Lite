@@ -10,20 +10,20 @@ export interface Machine {
 
 export const machinesSeed: Machine[] = [
   {
-    id: 'M1',
-    name: 'Machine 1',
+    id: 'M-101',
+    name: 'Cutter 1',
     status: 'RUNNING',
     lastUpdated: '2 mins ago',
   },
   {
-    id: 'M2',
-    name: 'Machine 2',
+    id: 'M-102',
+    name: 'Roller A',
     status: 'STOPPED',
     lastUpdated: '5 mins ago',
   },
   {
-    id: 'M3',
-    name: 'Machine 3',
+    id: 'M-103',
+    name: 'Packing West',
     status: 'MAINTENANCE',
     lastUpdated: '12 mins ago',
   },

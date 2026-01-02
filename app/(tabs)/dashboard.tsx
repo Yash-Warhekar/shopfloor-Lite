@@ -1,8 +1,9 @@
-import MachineCard from '@/components/MachineCard'
+import MachineCard from '@/components/MachineCard';
 // import { machines } from '@/constants/machinex'
-import { useAppData } from '@/context/AppDataContext'
-import React from 'react'
-import { FlatList, StyleSheet, View } from 'react-native'
+import { useAppData } from '@/context/AppDataContext';
+import { useSyncStore } from '@/lib/syncQueue';
+import React from 'react';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 
 
 
@@ -10,9 +11,13 @@ import { FlatList, StyleSheet, View } from 'react-native'
 
 const Dashboard = () => {
   const {machines}=useAppData();
+  const { pending, syncing } = useSyncStore();
 
   return (
      <View style={{ flex: 1, padding: 16, backgroundColor: '#f2f2f2' }}>
+      <View style={{ marginBottom: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
+        <Text style={{ fontSize: 12, color: '#444' }}>{syncing ? 'Syncing...' : `Pending: ${pending || 0}`}</Text>
+      </View>
       <FlatList
         data={machines}
         keyExtractor={(item) => item.id}

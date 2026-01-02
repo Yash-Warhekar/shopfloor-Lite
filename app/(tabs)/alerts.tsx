@@ -1,10 +1,12 @@
 import { useAppData } from '@/context/AppDataContext';
+import { useAuth } from '@/context/AuthContext';
 import React from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 const Alerts = () => {
   const { alerts } = useAppData();
-  // const { role } = useAuth();
+  const { role, user } = useAuth();
+  const { acknowledgeAlert, clearAlert } = useAppData();
 
   // if (role !== 'SUPERVISOR') {
   //   return (
@@ -48,9 +50,24 @@ const Alerts = () => {
           </View>
 
           <Text className="text-gray-700 mb-2">{alert.message}</Text>
-          <Text className="text-xs text-gray-400">
-             {alert.time || new Date().toLocaleTimeString()}
-          </Text>
+          <Text className="text-xs text-gray-400">{alert.time || new Date().toLocaleTimeString()}</Text>
+
+          <Text className="text-xs mt-2">Status: {alert.status || 'CREATED'}</Text>
+
+          {role === 'SUPERVISOR' && alert.status === 'CREATED' && (
+            <View className="flex-row mt-3">
+              <TouchableOpacity onPress={() => acknowledgeAlert(alert.id, user?.username || 'unknown')} className="bg-yellow-400 px-3 py-2 rounded mr-3">
+                <Text>Acknowledge</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => clearAlert(alert.id)} className="bg-green-400 px-3 py-2 rounded">
+                <Text>Clear</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {alert.status === 'ACKNOWLEDGED' && (
+            <Text className="text-xs text-gray-500 mt-2">Acknowledged by: {alert.ackBy || '—'} at {alert.ackAt ? new Date(alert.ackAt).toLocaleString() : '—'}</Text>
+          )}
         </TouchableOpacity>
       ))}
     </ScrollView>

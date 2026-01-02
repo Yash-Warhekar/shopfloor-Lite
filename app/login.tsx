@@ -1,21 +1,23 @@
-import { SEEDED_USERS, useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
+import { useRole } from '@/context/RoleContext';
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Button,
-  ScrollView,
   Text,
   TextInput,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const Login = () => {
   const { user, login, isLoading } = useAuth();
+  const { setRole } = useRole();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [selectedRole, setSelectedRole] = useState<'OPERATOR' | 'SUPERVISOR'>('OPERATOR');
 
   // Auto-redirect if already logged in
   useEffect(() => {
@@ -34,7 +36,12 @@ const Login = () => {
     const result = await login(username, password);
     if (!result.success) {
       setError(result.error || "Login failed");
+      return;
     }
+
+    // Persist chosen role and go to dashboard
+    setRole(selectedRole);
+    router.replace("/(tabs)/dashboard");
   };
 
   return (
@@ -96,30 +103,14 @@ const Login = () => {
           {isLoading && <ActivityIndicator size="large" color="#3498db" />}
         </View>
         
-        {/* Demo-seed data */}
-        <View className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-          <ScrollView className="max-h-48">
-            <Text className="text-sm font-bold text-gray-800 mb-3">
-              Demo Accounts:
-            </Text>
-
-            {SEEDED_USERS.map((u) => (
-              <View key={u.id} className="mb-3 pb-3 border-b border-blue-200">
-                <Text className="text-xs font-semibold text-gray-700">
-                  {u.role === "OPERATOR" ? "Operator" : "Supervisor"}
-                </Text>
-                <Text className="text-xs text-gray-600 mt-1">
-                  <Text className="font-mono">Username: {u.username}</Text>
-                </Text>
-                <Text className="text-xs text-gray-600">
-                  <Text className="font-mono">Password: {u.password}</Text>
-                </Text>
-                <Text className="text-xs text-gray-600 mt-1">
-                  Name: {u.name}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
+        {/* Role toggle */}
+        <View className="flex-row justify-center mb-4">
+          <View className={`mr-2 ${selectedRole === 'OPERATOR' ? 'bg-blue-600 rounded-lg' : ''}`}>
+            <Button title="Operator" onPress={() => setSelectedRole('OPERATOR')} color={selectedRole === 'OPERATOR' ? '#1f8ef1' : '#888'} />
+          </View>
+          <View className={`${selectedRole === 'SUPERVISOR' ? 'bg-green-600 rounded-lg' : ''}`}>
+            <Button title="Supervisor" onPress={() => setSelectedRole('SUPERVISOR')} color={selectedRole === 'SUPERVISOR' ? '#10b981' : '#888'} />
+          </View>
         </View>
       </View>
     </SafeAreaView>

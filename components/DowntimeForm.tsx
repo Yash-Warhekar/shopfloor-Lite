@@ -1,43 +1,142 @@
+import { reasonTree as rawReasonTree } from '@/constants/reasons';
 import { useAppData } from '@/context/AppDataContext';
+import { File } from 'expo-file-system';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useState } from 'react';
 import {
+  Alert,
+  Image,
   ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function DowntimeForm() {
-  const { machines, reportDowntime } = useAppData();
+export default function DowntimeForm({ selectedMachineIdProp }: { selectedMachineIdProp?: string }) {
+
+  const { machines, startDowntime, endDowntime, downtimeSessions } = useAppData();
+
+  const safeMachines = machines ?? [];
+  const safeDowntimeSessions = downtimeSessions ?? {};
+  const reasonTree = rawReasonTree ?? [];
+
+
+
 
   const [selectedMachineId, setSelectedMachineId] = useState<string | undefined>(
-    undefined
+    selectedMachineIdProp
   );
-  const [reason, setReason] = useState('');
   const [remarks, setRemarks] = useState('');
+  const [parentReason, setParentReason] = useState<string | null>(null);
+  const [childReason, setChildReason] = useState<string | null>(null);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoSize, setPhotoSize] = useState<number | null>(null);
+  const [permission, requestPermission] = ImagePicker.useMediaLibraryPermissions();
 
   useEffect(() => {
-    if (!selectedMachineId && machines.length) {
-      setSelectedMachineId(machines[0].id);
+    if (!selectedMachineId && safeMachines.length) {
+      setSelectedMachineId(safeMachines[0].id);
     }
-  }, [machines, selectedMachineId]);
+  }, [safeMachines, selectedMachineId]);
 
-  const handleSubmit = () => {
-    if (!selectedMachineId || !reason) {
-      alert('Please select a machine and reason');
+  useEffect(() => {
+    // initialize parent reason to first
+    if (!parentReason && reasonTree.length) {
+      const first = reasonTree[0];
+      setParentReason(first.code);
+      setChildReason(first.children?.[0]?.code || null);
+    }
+  }, [parentReason, reasonTree]);
+
+const isStarted = !!selectedMachineId && !!downtimeSessions?.[selectedMachineId];
+  const handleStart = async () => {
+    const finalReason = childReason ? `${parentReason}:${childReason}` : parentReason || '';
+    if (!selectedMachineId || !finalReason) {
+      Alert.alert('Validation', 'Please select a machine and reason');
       return;
     }
 
-    const details = remarks ? `${reason} - ${remarks}` : reason;
-    reportDowntime(selectedMachineId, details);
-
-    alert('Downtime recorded');
-    setReason('');
-    setRemarks('');
+    await startDowntime(selectedMachineId, finalReason, photoUri ? { uri: photoUri, size: photoSize } : undefined);
+    Alert.alert('Started', 'Downtime started and queued');
   };
 
+  const handleEnd = async () => {
+    if (!selectedMachineId) return;
+    await endDowntime(selectedMachineId, remarks);
+    Alert.alert('Ended', 'Downtime ended and queued');
+    setRemarks('');
+    setPhotoUri(null);
+    setPhotoSize(null);
+  };
+
+ const pickImage = async () => {
+  try {
+    if (!permission?.granted) {
+        const perm = await requestPermission();
+        if (!perm.granted) {
+          Alert.alert('Permission required', 'Need access to images');
+          return;
+        }
+      }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      quality: 0.8,
+      allowsEditing: true,
+      base64: false,
+      mediaTypes: ['images'],
+    });
+
+    if (res.canceled) return;
+
+    const uri = res.assets?.[0]?.uri;
+    if (!uri) {
+      Alert.alert('Image error', 'No image URI returned');
+      return;
+    }
+
+    // helper to get size via new File API
+    const getSize = async (fileUri: string) => {
+      const file = new File(fileUri);
+      const info = await file.info(); // replacement for getInfoAsync
+      return info.size ?? 0;
+    };
+
+    // compress loop until <= 200KB
+    let quality = 0.8;
+    let compressed = await ImageManipulator.manipulateAsync(
+      uri,
+      [],
+      { compress: quality, format: ImageManipulator.SaveFormat.JPEG }
+    );
+    let size = await getSize(compressed.uri);
+
+    while (size > 200 * 1024 && quality > 0.2) {
+      quality -= 0.15;
+      compressed = await ImageManipulator.manipulateAsync(
+        uri,
+        [],
+        { compress: quality, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      size = await getSize(compressed.uri);
+    }
+
+    if (size > 200 * 1024) {
+      Alert.alert(
+        'Image too large',
+        'Could not compress below 200KB. Choose a smaller image.'
+      );
+      return;
+    }
+
+    setPhotoUri(compressed.uri);
+    setPhotoSize(size);
+  } catch (e) {
+    console.error('pickImage', e);
+    Alert.alert('Image error', 'Failed to pick or compress image');
+  }
+};
 
   return (
     <SafeAreaView className="p-7 my-auto">
@@ -69,12 +168,25 @@ export default function DowntimeForm() {
       </ScrollView>
 
       <Text className="mt-3 mb-1">Reason</Text>
-      <TextInput
-        placeholder="Machine breakdown"
-        value={reason}
-        onChangeText={setReason}
-        className="border border-gray-300 p-2 mb-3"
-      />
+      <View className="mb-3">
+        <Text className="text-sm font-semibold mb-1">Category</Text>
+        <ScrollView horizontal className="mb-2">
+          {reasonTree.map(r => (
+            <TouchableOpacity key={r.code} onPress={() => { setParentReason(r.code); setChildReason(r.children?.[0]?.code || null); }} className={`px-3 py-2 mr-2 rounded ${parentReason === r.code ? 'bg-blue-500' : 'bg-gray-100'}`}>
+              <Text className={`${parentReason === r.code ? 'text-white' : 'text-gray-800'}`}>{r.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <Text className="text-sm font-semibold mb-1">Subreason</Text>
+        <ScrollView horizontal>
+          {(reasonTree.find(r => r.code === parentReason)?.children || []).map(c => (
+            <TouchableOpacity key={c.code} onPress={() => setChildReason(c.code)} className={`px-3 py-2 mr-2 rounded ${childReason === c.code ? 'bg-blue-400' : 'bg-gray-100'}`}>
+              <Text className={`${childReason === c.code ? 'text-white' : 'text-gray-800'}`}>{c.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
       <Text className="mb-1">Remarks</Text>
       <TextInput
@@ -84,9 +196,27 @@ export default function DowntimeForm() {
         className="border border-gray-300 p-2 mb-3"
       />
 
-      <TouchableOpacity className="bg-blue-500 p-3 rounded-md items-center mt-2 mb-11" onPress={handleSubmit}>
-        <Text className="text-white font-semibold">Submit Downtime</Text>
-      </TouchableOpacity>
+      <View className="mb-3">
+        <Text className="text-sm font-semibold mb-2">Photo (optional)</Text>
+        <View className="flex-row items-center">
+          <TouchableOpacity className="bg-gray-200 px-3 py-2 rounded mr-3" onPress={pickImage}>
+            <Text>Attach Photo</Text>
+          </TouchableOpacity>
+          {photoUri ? (
+            <Image source={{ uri: photoUri }} style={{ width: 64, height: 64, borderRadius: 6 }} />
+          ) : null}
+        </View>
+      </View>
+
+      {!isStarted ? (
+        <TouchableOpacity className="bg-blue-500 p-3 rounded-md items-center mt-2 mb-4" onPress={handleStart}>
+          <Text className="text-white font-semibold">Start Downtime</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity className="bg-red-500 p-3 rounded-md items-center mt-2 mb-4" onPress={handleEnd}>
+          <Text className="text-white font-semibold">End Downtime</Text>
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 }
