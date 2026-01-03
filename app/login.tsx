@@ -1,13 +1,14 @@
 import { useAuth } from "@/context/AuthContext";
-import { useRole } from '@/context/RoleContext';
+import { useRole } from "@/context/RoleContext";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Button,
+  Switch,
   Text,
   TextInput,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -17,9 +18,10 @@ const Login = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [selectedRole, setSelectedRole] = useState<'OPERATOR' | 'SUPERVISOR'>('OPERATOR');
+  const [selectedRole, setSelectedRole] = useState<"OPERATOR" | "SUPERVISOR">(
+    "OPERATOR"
+  );
 
-  // Auto-redirect if already logged in
   useEffect(() => {
     if (user) {
       router.replace("/(tabs)/dashboard");
@@ -39,7 +41,6 @@ const Login = () => {
       return;
     }
 
-    // Persist chosen role and go to dashboard
     setRole(selectedRole);
     router.replace("/(tabs)/dashboard");
   };
@@ -51,15 +52,11 @@ const Login = () => {
           ShopFloor Lite
         </Text>
 
-        <Text className="text-center text-gray-600 mb-8 text-lg">
-          Welcome
-        </Text>
+        <Text className="text-center text-gray-600 mb-8 text-lg">Welcome</Text>
 
-        {/* Login Form */}
         <View className="bg-white rounded-xl p-6 shadow-lg mb-6">
           <Text className="text-2xl font-bold mb-6 text-gray-800">Login</Text>
 
-          {/* Username Input */}
           <Text className="text-sm font-semibold text-gray-700 mb-2">
             Username
           </Text>
@@ -72,7 +69,6 @@ const Login = () => {
             placeholderTextColor="#999"
           />
 
-          {/* Password Input */}
           <Text className="text-sm font-semibold text-gray-700 mb-2">
             Password
           </Text>
@@ -102,15 +98,22 @@ const Login = () => {
 
           {isLoading && <ActivityIndicator size="large" color="#3498db" />}
         </View>
-        
-        {/* Role toggle */}
-        <View className="flex-row justify-center mb-4">
-          <View className={`mr-2 ${selectedRole === 'OPERATOR' ? 'bg-blue-600 rounded-lg' : ''}`}>
-            <Button title="Operator" onPress={() => setSelectedRole('OPERATOR')} color={selectedRole === 'OPERATOR' ? '#1f8ef1' : '#888'} />
-          </View>
-          <View className={`${selectedRole === 'SUPERVISOR' ? 'bg-green-600 rounded-lg' : ''}`}>
-            <Button title="Supervisor" onPress={() => setSelectedRole('SUPERVISOR')} color={selectedRole === 'SUPERVISOR' ? '#10b981' : '#888'} />
-          </View>
+
+        <View className="flex-row items-center justify-center mb-6">
+          <Text className="mr-3 text-gray-700 text-2xl font-semibold">
+            Operator
+          </Text>
+
+          <Switch
+            value={selectedRole === "SUPERVISOR"}
+            onValueChange={(value) =>
+              setSelectedRole(value ? "SUPERVISOR" : "OPERATOR")
+            }
+          />
+
+          <Text className="ml-3 text-2xl text-gray-700 font-semibold">
+            Supervisor
+          </Text>
         </View>
       </View>
     </SafeAreaView>

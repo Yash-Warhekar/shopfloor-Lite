@@ -30,9 +30,8 @@ const TabLayout = () => {
           headerLeft: () => (
             <View style={{ marginLeft: 16 }}>
               <Button 
-                title={`${isOperator ? 'operator' : 'supervisor'} ${user?.name}`} 
+                title={`${isOperator ? 'operator' : 'supervisor'}`} 
                 onPress={() => {}} 
-                color="#555" 
               />
             </View>
           ),

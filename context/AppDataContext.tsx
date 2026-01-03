@@ -72,7 +72,7 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
   const [downtimeSessions, setDowntimeSessions] = useState<Record<string, any>>({});
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Load persisted state on mount
+
   useEffect(() => {
     const loadState = async () => {
       try {
@@ -91,14 +91,11 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
     };
     loadState();
 
-    // start sync listener
     initSyncListener();
 
-    // populate pending count
     getQueue().then(q => useSyncStore.getState().setPending(q.length)).catch(e=>{});
   }, []);
 
-  // Alert simulator for demo: push a new alert every 60s
   useEffect(() => {
     const iv = setInterval(() => {
       const id = `A-${Date.now()}`;
@@ -124,7 +121,6 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
     return () => clearInterval(iv);
   }, [machines]);
 
-  // Save machines to AsyncStorage whenever they change
   useEffect(() => {
     if (isHydrated) {
       AsyncStorage.setItem('machines', JSON.stringify(machines)).catch(e =>
@@ -133,7 +129,6 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
     }
   }, [machines, isHydrated]);
 
-  // Saveing alerts to AsyncStorage whenever they change
   useEffect(() => {
     if (isHydrated) {
       AsyncStorage.setItem('alerts', JSON.stringify(alerts)).catch(e =>
@@ -142,7 +137,6 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
     }
   }, [alerts, isHydrated]);
 
-  // Save maintenance records to AsyncStorage whenever they change
   useEffect(() => {
     if (isHydrated) {
       AsyncStorage.setItem('maintenanceRecords', JSON.stringify(maintenanceRecords)).catch(e =>
@@ -174,7 +168,6 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
         } as any,
       ]);
 
-      // enqueue for sync
       (async () => {
         try {
           const tenant_id = (await AsyncStorage.getItem('userId')) || 'tenant-unknown';
@@ -257,7 +250,6 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
     });
   };
 
-  // Operator: complete maintenance
   const completeMaintenance = (machineId: string, checkedItemIds: number[], remarks: string) => {
     const machine = machines.find(m => m.id === machineId);
     if (!machine) return;
@@ -277,7 +269,6 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
 
     setMaintenanceRecords(prev => [...prev, record]);
 
-    // Update machine status to RUNNING after maintenance
     setMachines(prev =>
       prev.map(m =>
         m.id === machineId
@@ -286,7 +277,6 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
       )
     );
 
-    // Add alert
     setAlerts(curr => [
       ...curr,
       {
@@ -298,8 +288,6 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
         createdAt: new Date().toISOString(),
       } as any,
     ]);
-
-    // enqueue maintenance record for sync
     (async () => {
       try {
         const tenant_id = (await AsyncStorage.getItem('userId')) || 'tenant-unknown';
@@ -316,10 +304,8 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
     })();
   };
 
-  // Supervisor: acknowledge alert
   const acknowledgeAlert = (alertId: string, userEmail: string) => {
     setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status: 'ACKNOWLEDGED', ackBy: userEmail, ackAt: new Date().toISOString() } : a));
-    // enqueue ack event
     (async () => {
       try {
         const tenant_id = (await AsyncStorage.getItem('userId')) || 'tenant-unknown';
@@ -365,8 +351,13 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
         alerts,
         maintenanceRecords,
         maintenanceChecklist: maintenanceChecklistSeed,
-        reportDowntime,
-        completeMaintenance,
+         downtimeSessions,
+    startDowntime,
+    endDowntime,
+     reportDowntime,
+    completeMaintenance,
+    acknowledgeAlert,
+    clearAlert,
       }}
     >
       {children}

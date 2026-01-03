@@ -8,15 +8,6 @@ const Alerts = () => {
   const { role, user } = useAuth();
   const { acknowledgeAlert, clearAlert } = useAppData();
 
-  // if (role !== 'SUPERVISOR') {
-  //   return (
-  //     <ScrollView className="flex-1 bg-gray-100 p-4 items-center justify-center">
-  //       <Text className="text-lg font-bold text-red-600">Access Denied</Text>
-  //       <Text className="text-sm text-gray-600 mt-2">Only Supervisors can view alerts</Text>
-  //     </ScrollView>
-  //   );
-  // }
-
   return (
     <ScrollView className="flex-1 bg-gray-100 p-4">
       <View className="p-3 rounded-lg mb-4">

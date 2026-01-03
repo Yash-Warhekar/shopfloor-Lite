@@ -33,7 +33,7 @@ export default function MachineCard({ machine }: { machine: Machine }) {
           borderLeftColor: statusColor[machine.status],
         }}
       >
-        <Text style={{ fontSize: 16, fontWeight: '600', color: 'primary' }}>
+        <Text style={{ fontSize: 20, fontWeight: '600', color: 'primary' }}>
           {machine.name}
         </Text>
 

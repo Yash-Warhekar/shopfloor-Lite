@@ -34,7 +34,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [role, setRole] = useState<Role | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load persisted user on mount
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -63,7 +62,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const login = async (username: string, password: string) => {
     setIsLoading(true);
     try {
-      // Accept any email/username — create a mock user and JWT
+      
       const id = username;
       const name = username.includes('@') ? username.split('@')[0] : username;
 
@@ -79,7 +78,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await AsyncStorage.setItem('userId', id);
       await AsyncStorage.setItem('mockJWT', mockJWT);
 
-      // Load role if previously chosen
       const savedRole = await AsyncStorage.getItem('userRole');
       if (savedRole) {
         newUser.role = savedRole as Role;
@@ -89,7 +87,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       setUser(newUser);
 
-      // If role not yet set for this user, indicate first-login to allow role selection
       const isNewUser = !newUser.role;
 
       return { success: true, isNewUser };

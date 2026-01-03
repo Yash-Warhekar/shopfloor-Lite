@@ -1,5 +1,4 @@
 import MachineCard from '@/components/MachineCard';
-// import { machines } from '@/constants/machinex'
 import { useAppData } from '@/context/AppDataContext';
 import { useSyncStore } from '@/lib/syncQueue';
 import React from 'react';

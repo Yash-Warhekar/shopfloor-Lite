@@ -9,8 +9,7 @@ export default function MachineDetail() {
   const { machines } = useAppData();
 
 
-  const safeMachines = machines ?? [];
-  const machine = safeMachines.find((m: any) => m.id === id);
+  const machine = machines?.find((m: any) => m.id === id);
 
   if (!machine) {
     return (

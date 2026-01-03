@@ -13,7 +13,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function DowntimeForm({ selectedMachineIdProp }: { selectedMachineIdProp?: string }) {
 
@@ -43,7 +42,6 @@ export default function DowntimeForm({ selectedMachineIdProp }: { selectedMachin
   }, [safeMachines, selectedMachineId]);
 
   useEffect(() => {
-    // initialize parent reason to first
     if (!parentReason && reasonTree.length) {
       const first = reasonTree[0];
       setParentReason(first.code);
@@ -82,9 +80,8 @@ const isStarted = !!selectedMachineId && !!downtimeSessions?.[selectedMachineId]
         }
       }
     const res = await ImagePicker.launchImageLibraryAsync({
-      quality: 0.8,
+      quality: 1,
       allowsEditing: true,
-      base64: false,
       mediaTypes: ['images'],
     });
 
@@ -96,40 +93,18 @@ const isStarted = !!selectedMachineId && !!downtimeSessions?.[selectedMachineId]
       return;
     }
 
-    // helper to get size via new File API
-    const getSize = async (fileUri: string) => {
-      const file = new File(fileUri);
-      const info = await file.info(); // replacement for getInfoAsync
-      return info.size ?? 0;
-    };
-
-    // compress loop until <= 200KB
-    let quality = 0.8;
-    let compressed = await ImageManipulator.manipulateAsync(
+    const compressed = await ImageManipulator.manipulateAsync(
       uri,
       [],
-      { compress: quality, format: ImageManipulator.SaveFormat.JPEG }
+      {
+        compress: 0.6,
+        format: ImageManipulator.SaveFormat.JPEG,
+      }
     );
-    let size = await getSize(compressed.uri);
-
-    while (size > 200 * 1024 && quality > 0.2) {
-      quality -= 0.15;
-      compressed = await ImageManipulator.manipulateAsync(
-        uri,
-        [],
-        { compress: quality, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      size = await getSize(compressed.uri);
-    }
-
-    if (size > 200 * 1024) {
-      Alert.alert(
-        'Image too large',
-        'Could not compress below 200KB. Choose a smaller image.'
-      );
-      return;
-    }
-
+    const file = new File(compressed.uri);
+    const info = await file.info();
+    const size = info.size ?? 0;
+    
     setPhotoUri(compressed.uri);
     setPhotoSize(size);
   } catch (e) {
@@ -139,7 +114,7 @@ const isStarted = !!selectedMachineId && !!downtimeSessions?.[selectedMachineId]
 };
 
   return (
-    <SafeAreaView className="p-7 my-auto">
+    <ScrollView className="p-7">
       <View className="bg-blue-50 p-3 rounded-lg mb-4">
         <Text className="text-sm text-blue-700"> Operator Mode</Text>
       </View>
@@ -217,7 +192,7 @@ const isStarted = !!selectedMachineId && !!downtimeSessions?.[selectedMachineId]
           <Text className="text-white font-semibold">End Downtime</Text>
         </TouchableOpacity>
       )}
-    </SafeAreaView>
+    </ScrollView>
   );
 }
 
